@@ -69,7 +69,7 @@ vec2 hash22(vec2 p) {
     return fract((p3.xx + p3.yz) * p3.zy);
 }
 
-float peakNoise(vec2 pos) {
+float peakNoise(vec2 pos, float scale) {
     vec2 scaledPos = pos * 7.0;
     vec2 iPos = floor(scaledPos);
     
@@ -152,7 +152,7 @@ vec3 getMoonColor(vec3 pos, vec3 normal, vec3 rayDirection) {
     float persistence = 0.5;
 
     for (int i = 0; i < starOctaves; ++i) {
-        detailNoise += peakNoise(pos.xz);
+        detailNoise += peakNoise(pos.xz, 5.0);
         scale *= 2.0;
         persistence *= 0.5;
     }
@@ -220,14 +220,18 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
     }
     
     //color = vec3(totalDistance * 0.05);
-    if(totalDistance > maxDistance){      
-        float noise = peakNoise(uv);
+    if(totalDistance > maxDistance){ 
+        float starScale = 7.0;
+        float noise = peakNoise(uv, starScale);
         float starThreshold = 0.01;
         float starAppearance = step(starThreshold, noise);
-        float time_factor = sin(hash11(noise)) + 0.5;
-        vec3 finalStarColor = starColor * starAppearance * noise;
-        
-        color = vec3(skyColor - abs(rayDirection.y) * 0.3 + rayDirection.x * 0.05 + finalStarColor * time_factor);
+
+        vec2 gridPos = floor(uv * starScale);
+        float twinkleSpeed = 1.0 + hash11(dot(gridPos, vec2(123.4, 567.8))) * 3.0;
+        float twinkle = 0.7 + 0.3 * sin(iTime * twinkleSpeed);
+        vec3 finalStarColor = starColor * starAppearance * noise * 2.0 * twinkle;
+
+        color = vec3(skyColor - abs(rayDirection.y) * 0.3 + rayDirection.x * 0.05 + finalStarColor);
     }
     else{
         if(oceanMotion.x < moonMotion){
