@@ -70,32 +70,28 @@ vec2 hash22(vec2 p) {
 }
 
 float peakNoise(vec2 pos) {
-    vec2 grid_scale_pos = pos * 7.0;
-
-    vec2 i_pos = floor(grid_scale_pos);
-    vec2 f_pos = fract(grid_scale_pos);
-
-    float min_dist_to_peak = 1e5;
-    float closest_peak_size_influence = 0.0; // Track size influence of the closest peak
-
+    vec2 scaledPos = pos * 7.0;
+    vec2 iPos = floor(scaledPos);
+    
+    float starIntensity = 0.0;
+    
+    // Check neighboring cells for stars
     for (int y = -1; y <= 1; ++y) {
         for (int x = -1; x <= 1; ++x) {
-            vec2 neighbor_cell = i_pos + vec2(float(x), float(y));
-            vec2 offset_in_cell = hash22(neighbor_cell);
-            float current_peak_size_factor = hash11(dot(neighbor_cell, vec2(5.3, 7.9)));
-
-            vec2 peak_uv_absolute = (neighbor_cell + offset_in_cell) / 7.0;
-            float dist_to_this_peak = length(pos - peak_uv_absolute);
-            float scaled_dist = dist_to_this_peak * (0.8 + current_peak_size_factor * 0.7);
-
-            if (scaled_dist < min_dist_to_peak) {
-                min_dist_to_peak = scaled_dist;
-            }
+            vec2 neighbor = iPos + vec2(float(x), float(y));
+            vec2 offset = hash22(neighbor);
+            vec2 starPos = (neighbor + offset) / 7.0;
+            float dist = length(pos - starPos);
+            float starSize = 0.002 + hash11(dot(neighbor, vec2(5.3, 7.9))) * 0.006;
+            float starBrightness = 0.1 + hash11(dot(neighbor, vec2(12.7, 45.2))) * 0.9;
+            float starContribution = 1.0 - smoothstep(starSize * 0.5, starSize, dist);
+            starContribution *= starBrightness;
+            
+            starIntensity += starContribution;
         }
     }
-
-    float value = exp(-min_dist_to_peak * 80.0);
-    return value;
+    
+    return clamp(starIntensity, 0.0, 1.0);
 }
 
 vec3 oceanFBM(vec3 pos){
@@ -226,14 +222,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
     //color = vec3(totalDistance * 0.05);
     if(totalDistance > maxDistance){      
         float noise = peakNoise(uv);
-        float densityFactor = hash11(dot(uv, vec2(196.4, 548.9)));
-        float starThreshold = 0.85 + densityFactor * -0.05;
+        float starThreshold = 0.01;
         float starAppearance = step(starThreshold, noise);
-        float time_factor = sin(hash(uv * iTime)) * 2.0 + 0.5;
-        float brightFactor = hash(uv) + 0.1;
-        vec3 finalStarColor = starColor * starAppearance * brightFactor * brightFactor * time_factor;
-
-        color = vec3(skyColor - abs(rayDirection.y) * 0.3 + rayDirection.x * 0.05 + finalStarColor);
+        float time_factor = sin(hash11(noise)) + 0.5;
+        vec3 finalStarColor = starColor * starAppearance * noise;
+        
+        color = vec3(skyColor - abs(rayDirection.y) * 0.3 + rayDirection.x * 0.05 + finalStarColor * time_factor);
     }
     else{
         if(oceanMotion.x < moonMotion){
