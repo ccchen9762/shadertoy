@@ -1,23 +1,17 @@
-const float PI = 3.1415926;
-
 const int marchSteps = 64;
 const int oceanOctaves = 4;
-const int starOctaves = 4;
 
 const mat2 rotation2D  = mat2(0.80, 0.60, -0.60, 0.80);
 const mat2 rotation2Di = mat2(0.80, -0.60, 0.60, 0.80);
 
-const mat2 rotation2D2  = mat2(2.4, 1.0, -1.0,  2.4);
-const mat2 rotation2D2i = mat2(2.4, -1.0, 1.0,  2.4);
-
 const vec3 oceanAmbeint = vec3(0.3, 0.6, 0.8) * 0.1;
-const vec3 oceanDiffuse = vec3(0.3, 0.6, 0.8);
+const vec3 oceanDiffuse = vec3(0.9, 0.9, 1.0);
 const vec3 oceanSpecular = vec3(1.0, 1.0, 1.0);
 const float oceanHeight = 0.0;
 
 const vec3 moonPosition = vec3(22.0, 20.0, -35.0);
 float moonSize = 3.0;
-const vec3 moonColor  = vec3(0.95, 0.92, 0.80);
+const vec3 moonColor  = vec3(0.95, 0.92, 0.85);
 const vec3 mariaColor = vec3(0.75, 0.73, 0.67);
 
 const float starScale = 5.0;
@@ -150,8 +144,8 @@ vec3 getOceanColor(vec3 normal, vec3 rayDirection, float distance, float steepne
     // foam effect
     vec3 foamOceanDiffuse = mix(oceanDiffuse, vec3(0.3, 0.4, 0.4), steepness * steepness * 40.0);
     
-    vec3 diffuseColor = oceanSpecular * diffuse(lightDirection, normal) * 2.0;
-    vec3 specularColor = oceanSpecular * specular(lightDirection, normal, normalize(rayDirection), 25.0) * 2.0;
+    vec3 diffuseColor = moonColor * oceanDiffuse * diffuse(lightDirection, normal) * 1.5;
+    vec3 specularColor = moonColor * oceanSpecular * specular(lightDirection, normal, normalize(rayDirection), 25.0) * 2.0;
 
     float attenuation = 1.0 / (1.0 + distance * 0.05 + distance * distance * 0.01);
     vec3 color = oceanAmbeint + attenuation * (diffuseColor + specularColor * lightColor);
@@ -248,7 +242,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
             color = getOceanColor(normal, rayDirection, totalDistance, steepness);
         }
         else{
-            //color = getMoonColor(pos, normalize(pos - moonPosition), rayDirection);
             color = getMoonColor(pos);
         }
     }
