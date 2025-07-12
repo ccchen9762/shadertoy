@@ -15,9 +15,10 @@ const vec3 oceanDiffuse = vec3(0.3, 0.6, 0.8);
 const vec3 oceanSpecular = vec3(1.0, 1.0, 1.0);
 const float oceanHeight = 0.0;
 
-const vec3 moonPosition = vec3(14.0, 10.0, -20.0);
+const vec3 moonPosition = vec3(22.0, 20.0, -35.0);
 float moonSize = 3.0;
-const vec3 moonColor = vec3(1.0, 1.0, 0.85) * 0.6; 
+const vec3 moonColor  = vec3(0.95, 0.92, 0.80);
+const vec3 mariaColor = vec3(0.75, 0.73, 0.67);
 
 const float starScale = 5.0;
 const vec3 starColor = vec3(1.0, 1.0, 0.9) * 0.5;
@@ -95,6 +96,21 @@ float peakNoise(vec2 pos, float scale) {
     return clamp(starIntensity, 0.0, 1.0);
 }
 
+float hash31(vec3 p) {
+    return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+}
+
+float moonNoise(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    
+    return mix(mix(mix(hash31(i), hash31(i + vec3(1,0,0)), f.x),
+                   mix(hash31(i + vec3(0,1,0)), hash31(i + vec3(1,1,0)), f.x), f.y),
+               mix(mix(hash31(i + vec3(0,0,1)), hash31(i + vec3(1,0,1)), f.x),
+                   mix(hash31(i + vec3(0,1,1)), hash31(i + vec3(1,1,1)), f.x), f.y), f.z);
+}
+
 vec3 oceanFBM(vec3 pos){
     float height = oceanHeight;
     float amplitude = 0.08;
@@ -134,8 +150,8 @@ vec3 getOceanColor(vec3 normal, vec3 rayDirection, float distance, float steepne
     // foam effect
     vec3 foamOceanDiffuse = mix(oceanDiffuse, vec3(0.3, 0.4, 0.4), steepness * steepness * 40.0);
     
-    vec3 diffuseColor = foamOceanDiffuse * diffuse(lightDirection, normal);
-    vec3 specularColor = oceanSpecular * specular(lightDirection, normal, normalize(rayDirection), 50.0);
+    vec3 diffuseColor = oceanSpecular * diffuse(lightDirection, normal) * 2.0;
+    vec3 specularColor = oceanSpecular * specular(lightDirection, normal, normalize(rayDirection), 25.0) * 2.0;
 
     float attenuation = 1.0 / (1.0 + distance * 0.05 + distance * distance * 0.01);
     vec3 color = oceanAmbeint + attenuation * (diffuseColor + specularColor * lightColor);
@@ -143,28 +159,21 @@ vec3 getOceanColor(vec3 normal, vec3 rayDirection, float distance, float steepne
     return color;
 }
 
-vec3 getMoonColor(vec3 pos, vec3 normal, vec3 rayDirection) {
-    float facingFactor = max(0.0, dot(normal, -rayDirection)); 
-    float glowStrength = pow(facingFactor, 2.0);
-    vec3 finalColor = moonColor * (0.5 + glowStrength * 0.5); 
-
-    float detailNoise = 0.0;
-    float scale = 10.0; 
-    float persistence = 0.5;
-
-    for (int i = 0; i < starOctaves; ++i) {
-        detailNoise += peakNoise(pos.xz, 5.0);
-        scale *= 2.0;
-        persistence *= 0.5;
-    }
-
-    detailNoise = detailNoise * 0.7 - 0.5;
-
-    finalColor *= (1.0 + detailNoise * 0.2);
-
-    finalColor = clamp(finalColor, 0.0, 1.5);
-
-    return finalColor;
+vec3 getMoonColor(vec3 pos) {    
+    vec3 spherePos = normalize(pos - moonPosition);
+    
+    float largeCraters = moonNoise(spherePos * 3.9);
+    float mediumCraters = moonNoise(spherePos * 16.0);
+    float smallDetail = moonNoise(spherePos * 128.0);
+    
+    float craterPattern = largeCraters * 0.8 + mediumCraters * 0.5 + smallDetail * 0.2;
+    
+    float maria = smoothstep(0.2, 0.5, largeCraters);
+    
+    vec3 surfaceColor = mix(mariaColor, moonColor, maria);
+    surfaceColor *= (0.85 + 0.15 * craterPattern);
+    
+    return surfaceColor;
 }
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord){
@@ -239,7 +248,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
             color = getOceanColor(normal, rayDirection, totalDistance, steepness);
         }
         else{
-            color = getMoonColor(pos, normalize(pos - moonPosition), rayDirection);
+            //color = getMoonColor(pos, normalize(pos - moonPosition), rayDirection);
+            color = getMoonColor(pos);
         }
     }
 
