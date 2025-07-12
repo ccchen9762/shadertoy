@@ -19,6 +19,7 @@ const vec3 moonPosition = vec3(14.0, 10.0, -20.0);
 float moonSize = 3.0;
 const vec3 moonColor = vec3(1.0, 1.0, 0.85) * 0.6; 
 
+const float starScale = 5.0;
 const vec3 starColor = vec3(1.0, 1.0, 0.9) * 0.5;
 const vec3 skyColor = vec3(0.35, 0.3, 0.5) * 0.5;
 
@@ -29,7 +30,7 @@ const float minDistance = 0.01;
 const float maxDistance = 50.0;
 
 
-float hash(vec2 pos){
+float hash21(vec2 pos){
     float val = dot(pos, vec2(196.4, 548.9));
     return fract(sin(val) * 45125.29076);
 }
@@ -41,10 +42,10 @@ vec3 valueNoise(vec2 pos){
     vec2 u = f*f*(3.0-2.0*f); // 3x^2 - 2x^3
     vec2 du = 6.0*f*(1.0-f);  // 6x - 6x^2
 
-    float a = hash(i + vec2(0.0, 0.0));
-    float b = hash(i + vec2(1.0, 0.0));
-    float c = hash(i + vec2(0.0, 1.0));
-    float d = hash(i + vec2(1.0, 1.0));
+    float a = hash21(i + vec2(0.0, 0.0));
+    float b = hash21(i + vec2(1.0, 0.0));
+    float c = hash21(i + vec2(0.0, 1.0));
+    float d = hash21(i + vec2(1.0, 1.0));
 
     float k0 = a;
     float k1 = b-a;
@@ -57,37 +58,37 @@ vec3 valueNoise(vec2 pos){
 }
 
 float hash11(float p) {
-    p = fract(p * .1031);
+    p = fract(p * 0.1031);
     p *= p + 33.33;
     p = fract(p * p);
     return p;
 }
 
 vec2 hash22(vec2 p) {
-    vec3 p3 = fract(vec3(p.xyx) * vec3(.1031, .1030, .0973));
+    vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
     p3 += dot(p3, p3.yzx + 33.33);
     return fract((p3.xx + p3.yz) * p3.zy);
 }
 
 float peakNoise(vec2 pos, float scale) {
-    vec2 scaledPos = pos * 7.0;
+    vec2 scaledPos = pos * scale;
     vec2 iPos = floor(scaledPos);
     
     float starIntensity = 0.0;
     
-    // Check neighboring cells for stars
-    for (int y = -1; y <= 1; ++y) {
-        for (int x = -1; x <= 1; ++x) {
-            vec2 neighbor = iPos + vec2(float(x), float(y));
-            vec2 offset = hash22(neighbor);
-            vec2 starPos = (neighbor + offset) / 7.0;
+    // Check neighboring cells for boundary stars
+    for (int i=-1; i<2; i++) {
+        for (int j=-1; j<2; j++) {
+            vec2 base = iPos + vec2(float(i), float(j));
+            vec2 offset = hash22(base);
+            vec2 starPos = (base + offset) / scale;
             float dist = length(pos - starPos);
-            float starSize = 0.002 + hash11(dot(neighbor, vec2(5.3, 7.9))) * 0.006;
-            float starBrightness = 0.1 + hash11(dot(neighbor, vec2(12.7, 45.2))) * 0.9;
+            float starSize = 0.001 + hash11(dot(base, vec2(5.3, 7.9))) * 0.006;
+            float starBrightness = 0.1 + hash11(dot(base, vec2(12.7, 45.2))) * 0.9;
             float starContribution = 1.0 - smoothstep(starSize * 0.5, starSize, dist);
             starContribution *= starBrightness;
             
-            starIntensity += starContribution;
+            starIntensity += starContribution / (dist * 800.0);
         }
     }
     
@@ -136,7 +137,7 @@ vec3 getOceanColor(vec3 normal, vec3 rayDirection, float distance, float steepne
     vec3 diffuseColor = foamOceanDiffuse * diffuse(lightDirection, normal);
     vec3 specularColor = oceanSpecular * specular(lightDirection, normal, normalize(rayDirection), 50.0);
 
-    float attenuation = 1.0 / (1.0 + distance * 0.05);
+    float attenuation = 1.0 / (1.0 + distance * 0.05 + distance * distance * 0.01);
     vec3 color = oceanAmbeint + attenuation * (diffuseColor + specularColor * lightColor);
     
     return color;
@@ -221,17 +222,13 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
     
     //color = vec3(totalDistance * 0.05);
     if(totalDistance > maxDistance){ 
-        float starScale = 7.0;
         float noise = peakNoise(uv, starScale);
-        float starThreshold = 0.01;
-        float starAppearance = step(starThreshold, noise);
+        vec2 gridPos = floor(uv);
+        float twinkleSpeed = 2.0 + hash11(dot(gridPos, vec2(123.4, 567.8))) * 3.0;
+        float twinkle = 0.8 + 0.2 * sin(iTime * twinkleSpeed);
+        vec3 finalStarColor = starColor * noise * 2.0 * twinkle;
 
-        vec2 gridPos = floor(uv * starScale);
-        float twinkleSpeed = 1.0 + hash11(dot(gridPos, vec2(123.4, 567.8))) * 3.0;
-        float twinkle = 0.7 + 0.3 * sin(iTime * twinkleSpeed);
-        vec3 finalStarColor = starColor * starAppearance * noise * 2.0 * twinkle;
-
-        color = vec3(skyColor - abs(rayDirection.y) * 0.3 + rayDirection.x * 0.05 + finalStarColor);
+        color = vec3(skyColor - abs(rayDirection.y) * 0.4 + rayDirection.x * 0.09 + finalStarColor);
     }
     else{
         if(oceanMotion.x < moonMotion){
